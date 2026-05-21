@@ -467,7 +467,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
       draftItem: draftNode.current,
       gridPosition: gridPosition.current,
       state: { ...placementState.current },
-      currentCursorRotationY: cursorGroupRef.current.rotation.y,
+      currentCursorRotationY: cursorGroupRef.current?.rotation.y ?? 0,
     })
 
     const getActiveValidators = () =>
@@ -497,6 +497,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
     }
 
     const applyTransition = (result: TransitionResult) => {
+      if (!cursorGroupRef.current) return
       Object.assign(placementState.current, result.stateUpdate)
       gridPosition.current.set(...result.gridPosition)
 
@@ -517,6 +518,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
     }
 
     const ensureDraft = (result: TransitionResult) => {
+      if (!cursorGroupRef.current) return
       gridPosition.current.set(...result.gridPosition)
       const c = worldToBuildingLocal(...result.cursorPosition)
       cursorGroupRef.current.position.set(c.x, c.y, c.z)
@@ -597,6 +599,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
 
       has3DPointerDrivenMoveRef.current = true
       lastRawPos.current.set(event.localPosition[0], event.localPosition[1], event.localPosition[2])
+      if (!cursorGroupRef.current) return
       const result = floorStrategy.move(getContext(), event)
       if (!result) return
 
@@ -629,7 +632,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
       if (draft) {
         useLiveTransforms.getState().set(draft.id, {
           position: result.gridPosition,
-          rotation: cursorGroupRef.current.rotation.y,
+          rotation: cursorGroupRef.current?.rotation.y ?? 0,
         })
       }
 
@@ -637,11 +640,16 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
     }
 
     const onGridClick = (event: GridEvent) => {
+      if (!cursorGroupRef.current) return
       const result = floorStrategy.click(getContext(), event, getActiveValidators())
       if (!result) return
 
       // Preserve cursor rotation for the next draft
-      const currentRotation: [number, number, number] = [0, cursorGroupRef.current.rotation.y, 0]
+      const currentRotation: [number, number, number] = [
+        0,
+        cursorGroupRef.current?.rotation.y ?? 0,
+        0,
+      ]
 
       // Clear live transform before commit
       if (draftNode.current) {
@@ -666,6 +674,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
 
     const onWallEnter = (event: WallEvent) => {
       has3DPointerDrivenMoveRef.current = true
+      if (!cursorGroupRef.current) return
       const nodes = useScene.getState().nodes
       const result = wallStrategy.enter(
         getContext(),
@@ -692,6 +701,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
 
     const onWallMove = (event: WallEvent) => {
       has3DPointerDrivenMoveRef.current = true
+      if (!cursorGroupRef.current) return
       const ctx = getContext()
 
       if (ctx.state.surface !== 'wall') {
@@ -798,6 +808,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
     }
 
     const onWallClick = (event: WallEvent) => {
+      if (!cursorGroupRef.current) return
       const result = wallStrategy.click(getContext(), event, getActiveValidators())
       if (!result) return
 
@@ -829,6 +840,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
     }
 
     const onWallLeave = (event: WallEvent) => {
+      if (!cursorGroupRef.current) return
       const result = wallStrategy.leave(getContext())
       if (!result) return
 
@@ -887,6 +899,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
     }
 
     const onItemEnter = (event: ItemEvent) => {
+      if (!cursorGroupRef.current) return
       if (event.node.id === draftNode.current?.id) return
       has3DPointerDrivenMoveRef.current = true
       const result = itemSurfaceStrategy.enter(getContext(), event)
@@ -904,6 +917,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
     }
 
     const onItemMove = (event: ItemEvent) => {
+      if (!cursorGroupRef.current) return
       if (event.node.id === draftNode.current?.id) return
       has3DPointerDrivenMoveRef.current = true
       const ctx = getContext()
@@ -975,6 +989,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
     }
 
     const onItemLeave = (event: ItemEvent) => {
+      if (!cursorGroupRef.current) return
       if (event.node.id === draftNode.current?.id) return
       if (placementState.current.surface !== 'item-surface') return
 
@@ -1084,7 +1099,8 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
         }
         return
       }
-
+      if (!cursorGroupRef.current) return
+      if (event.node.id === draftNode.current?.id) return
       const result = itemSurfaceStrategy.click(getContext(), event)
       if (!result) return
 
@@ -1110,6 +1126,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
 
     const onCeilingEnter = (event: CeilingEvent) => {
       has3DPointerDrivenMoveRef.current = true
+      if (!cursorGroupRef.current) return
       const nodes = useScene.getState().nodes
       const result = ceilingStrategy.enter(getContext(), event, resolveLevelId, nodes)
       if (!result) return
@@ -1130,6 +1147,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
 
     const onCeilingMove = (event: CeilingEvent) => {
       has3DPointerDrivenMoveRef.current = true
+      if (!cursorGroupRef.current) return
       if (!draftNode.current && placementState.current.surface === 'ceiling') {
         const nodes = useScene.getState().nodes
         const setup = ceilingStrategy.enter(getContext(), event, resolveLevelId, nodes)
@@ -1171,12 +1189,13 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
         // Publish live transform for 2D floorplan
         useLiveTransforms.getState().set(draft.id, {
           position: result.cursorPosition,
-          rotation: cursorGroupRef.current.rotation.y,
+          rotation: cursorGroupRef.current?.rotation.y ?? 0,
         })
       }
     }
 
     const onCeilingClick = (event: CeilingEvent) => {
+      if (!cursorGroupRef.current) return
       const result = ceilingStrategy.click(getContext(), event, getActiveValidators())
       if (!result) return
 
@@ -1199,6 +1218,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
     }
 
     const onCeilingLeave = (event: CeilingEvent) => {
+      if (!cursorGroupRef.current) return
       const result = ceilingStrategy.leave(getContext())
       if (!result) return
 
@@ -1326,6 +1346,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
 
     const ROTATION_STEP = Math.PI / 2
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!cursorGroupRef.current) return
       if (event.key === 'Shift') {
         shiftFreeRef.current = true
         revalidate()
@@ -1416,6 +1437,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
     }
 
     const onKeyUp = (event: KeyboardEvent) => {
+      if (!cursorGroupRef.current) return
       if (event.key === 'Shift') {
         shiftFreeRef.current = false
         revalidate()
@@ -1427,6 +1449,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
 
     // ---- tool:cancel (Escape / programmatic) ----
     const onCancel = () => {
+      if (!cursorGroupRef.current) return
       if (configRef.current.onCancel) {
         configRef.current.onCancel()
       }
@@ -1435,6 +1458,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
 
     // ---- Right-click cancel ----
     const onContextMenu = (event: MouseEvent) => {
+      if (!cursorGroupRef.current) return
       if (configRef.current.onCancel) {
         event.preventDefault()
         configRef.current.onCancel()
@@ -1570,6 +1594,7 @@ export function usePlacementCoordinator(config: PlacementCoordinatorConfig): Rea
 
   useFrame((_, delta) => {
     if (!asset) return
+    if (!cursorGroupRef.current) return
     if (!draftNode.current) return
     // The mesh-position lerp below only makes sense once this coordinator
     // owns the move via a 3D pointer event. Skip until then so that
