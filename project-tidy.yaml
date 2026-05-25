@@ -1,0 +1,63 @@
+# project-tidy.yaml — per-project manifest for the shared /project-tidy skill.
+# Engine + procedure: ~/.claude/skills/project-tidy/ (SKILL.md, project-tidy.example.yaml).
+# Validate: python <skill_dir>/project_tidy.py project-tidy.yaml --validate
+
+project:
+  name: editor
+  root: .
+  git_root: .
+  branch: main
+
+# check (read-only): this is a public, multi-contributor open-source monorepo
+# (pascalorg/editor) — auto-edits to shared instruction files / harness are risky.
+mode: check
+
+handoff:
+  prompt_file: C:/Temp/editor_Prompt.txt
+
+phases:
+  - compact
+  - harness
+  - deliverables
+  - consistency
+  - commit
+
+# ----- per-phase configuration -------------------------------------------
+
+compact:
+  # AGENTS.md is the real instruction file; CLAUDE.md / GEMINI.md /
+  # .github/copilot-instructions.md are symlinks to it.
+  instruction_files:
+    - CLAUDE.md
+    - AGENTS.md
+  memory_files: []
+  claude_md_max_lines: 120
+  skill_md_max_lines: 250
+
+harness:
+  parity_dirs: []
+
+deliverables:
+  # No build_command: a turbo monorepo `build` compiles app code, not shippable
+  # docs/decks/diagrams — the skill audits docs (wiki/, README) by inspection.
+  delegate_to: null
+  check_command: null
+  build_command: null
+
+consistency:
+  hard_rules:
+    - id: layer-boundaries
+      rule: >
+        Respect package layer boundaries: packages/core must not import Three.js,
+        packages/viewer, apps/editor, or any rendering/UI/tool/mode concept;
+        packages/viewer must not know about useEditor, editor tools, phases,
+        modes, or editor-only presentation vocabulary.
+      scan: [packages/core, packages/viewer]
+  checks: []
+
+commit:
+  style: single
+  typecheck_command: bun run check-types
+  message_prefix: project-tidy
+
+local_addendum: null
