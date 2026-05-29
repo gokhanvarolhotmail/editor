@@ -8,11 +8,12 @@ import {
 } from '@pascal-app/core'
 import { useViewer } from '@pascal-app/viewer'
 import { sfxEmitter } from '../../../lib/sfx-bus'
+import useEditor from '../../../store/use-editor'
 import {
   findWallSnapTarget,
+  getSegmentGridStep,
   getWallAngleSnapStep,
-  getWallGridStep,
-  isWallLongEnough,
+  isSegmentLongEnough,
   snapPointTo45Degrees,
   snapPointToGrid,
   type WallPlanPoint,
@@ -131,9 +132,11 @@ export function snapFenceDraftPoint(args: {
   start?: FencePlanPoint
   angleSnap?: boolean
   ignoreFenceIds?: string[]
+  /** Override the grid step (e.g. `WALL_FINE_GRID_STEP` for precision mode). */
+  step?: number
 }): FencePlanPoint {
-  const { point, walls, fences, start, angleSnap = false, ignoreFenceIds } = args
-  const gridStep = getWallGridStep()
+  const { point, walls, fences, start, angleSnap = false, ignoreFenceIds, step } = args
+  const gridStep = step ?? getSegmentGridStep()
   const angleStep = getWallAngleSnapStep(gridStep)
   const basePoint =
     start && angleSnap
@@ -151,12 +154,17 @@ export function createFenceOnCurrentLevel(
   const currentLevelId = useViewer.getState().selection.levelId
   const { createNode, nodes } = useScene.getState()
 
-  if (!(currentLevelId && isWallLongEnough(start, end))) {
+  if (!(currentLevelId && isSegmentLongEnough(start, end))) {
     return null
   }
 
   const fenceCount = Object.values(nodes).filter((node) => node.type === 'fence').length
+  // Build parameters seeded by a placed preset (height, style, post
+  // spacing, …) merge in first; `name`/`start`/`end` always win. The
+  // schema parse validates and drops anything unexpected.
+  const defaults = useEditor.getState().toolDefaults.fence ?? {}
   const fence = FenceNode.parse({
+    ...defaults,
     name: `Fence ${fenceCount + 1}`,
     start,
     end,

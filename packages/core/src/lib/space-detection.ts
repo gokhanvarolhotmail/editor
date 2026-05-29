@@ -47,6 +47,12 @@ export type AutoSlabSyncPlan = {
   delete: Array<SlabNodeType['id']>
 }
 
+export type AutoCeilingSyncPlan = {
+  create: CeilingNodeType[]
+  update: Array<{ id: CeilingNodeType['id']; data: Partial<CeilingNodeType> }>
+  delete: Array<CeilingNodeType['id']>
+}
+
 const DEFAULT_AUTO_SLAB_ELEVATION = 0.05
 const DEFAULT_AUTO_CEILING_HEIGHT = 2.5
 const ROOM_CURVE_TOLERANCE = 0.04
@@ -650,12 +656,10 @@ function syncAutoSlabsForLevel(
   }
 }
 
-function syncAutoCeilingsForLevel(
-  levelId: string,
+export function planAutoCeilingsForLevel(
   roomPolygons: Point2D[][],
   existingCeilings: CeilingNodeType[],
-  sceneStore: any,
-) {
+): AutoCeilingSyncPlan {
   const manualCeilings = existingCeilings.filter((ceiling) => !ceiling.autoFromWalls)
   const manualSignatures = new Set(
     manualCeilings.map((ceiling) => polygonSignature(ceiling.polygon.map(pointFromTuple))),
@@ -782,16 +786,31 @@ function syncAutoCeilingsForLevel(
     )
   }
 
-  if (ceilingsToDelete.length > 0) {
-    sceneStore.getState().deleteNodes(ceilingsToDelete)
+  return {
+    create: ceilingsToCreate,
+    update: ceilingsToUpdate,
+    delete: ceilingsToDelete,
+  }
+}
+
+function syncAutoCeilingsForLevel(
+  levelId: string,
+  roomPolygons: Point2D[][],
+  existingCeilings: CeilingNodeType[],
+  sceneStore: any,
+) {
+  const plan = planAutoCeilingsForLevel(roomPolygons, existingCeilings)
+
+  if (plan.delete.length > 0) {
+    sceneStore.getState().deleteNodes(plan.delete)
   }
 
-  if (ceilingsToUpdate.length > 0) {
-    sceneStore.getState().updateNodes(ceilingsToUpdate)
+  if (plan.update.length > 0) {
+    sceneStore.getState().updateNodes(plan.update)
   }
 
-  if (ceilingsToCreate.length > 0) {
-    sceneStore.getState().createNodes(ceilingsToCreate.map((node) => ({ node, parentId: levelId })))
+  if (plan.create.length > 0) {
+    sceneStore.getState().createNodes(plan.create.map((node) => ({ node, parentId: levelId })))
   }
 }
 
@@ -884,6 +903,29 @@ function runSpaceDetection(
   editorStore.getState().setSpaces(nextSpaces)
 }
 
+// Refcount of outstanding pause requests, matching the pauseSceneHistory
+// pattern. The community editor flips this off while the AI is actively
+// mutating the scene so the wall-driven auto slab/ceiling sync doesn't race
+// `create_room`'s explicit slabs/ceilings (see plan
+// `ai-pause-space-detection`).
+let spaceDetectionPauseDepth = 0
+
+/** Pause the wall-driven auto slab/ceiling sync. Refcounted — pair with `resumeSpaceDetection`. */
+export function pauseSpaceDetection(): void {
+  spaceDetectionPauseDepth += 1
+}
+
+/** Resume the wall-driven auto slab/ceiling sync. No-op if not currently paused. */
+export function resumeSpaceDetection(): void {
+  if (spaceDetectionPauseDepth === 0) return
+  spaceDetectionPauseDepth -= 1
+}
+
+/** True iff the wall-driven auto slab/ceiling sync is currently paused. */
+export function isSpaceDetectionPaused(): boolean {
+  return spaceDetectionPauseDepth > 0
+}
+
 export function initSpaceDetectionSync(sceneStore: any, editorStore: any): () => void {
   const previousSnapshots = new Map<string, string>()
   let isProcessing = false
@@ -907,6 +949,17 @@ export function initSpaceDetectionSync(sceneStore: any, editorStore: any): () =>
     const currentSnapshots = new Map<string, string>()
     for (const [levelId, walls] of wallsByLevel.entries()) {
       currentSnapshots.set(levelId, levelWallSnapshot(walls))
+    }
+
+    // Paused: roll the snapshot forward so we don't backfill (and re-duplicate)
+    // every paused change once detection resumes. Whatever the AI built while
+    // paused becomes the new baseline; only future changes will reconcile.
+    if (spaceDetectionPauseDepth > 0) {
+      previousSnapshots.clear()
+      for (const [levelId, snapshot] of currentSnapshots.entries()) {
+        previousSnapshots.set(levelId, snapshot)
+      }
+      return
     }
 
     const levelsToUpdate = new Set<string>()

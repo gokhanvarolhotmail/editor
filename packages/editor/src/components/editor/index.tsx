@@ -19,7 +19,6 @@ import {
 } from 'react'
 import { ViewerOverlay } from '../../components/viewer-overlay'
 import { ViewerZoneSystem } from '../../components/viewer-zone-system'
-import { type PresetsAdapter, PresetsProvider } from '../../contexts/presets-context'
 import { type SaveStatus, useAutoSave } from '../../hooks/use-auto-save'
 import { useKeyboard } from '../../hooks/use-keyboard'
 import {
@@ -61,7 +60,7 @@ import { FloatingActionMenu } from './floating-action-menu'
 import { FloatingBuildingActionMenu } from './floating-building-action-menu'
 import { FloorplanPanel } from './floorplan-panel'
 import { Grid } from './grid'
-import { PresetThumbnailGenerator } from './preset-thumbnail-generator'
+import { NodeArrowHandles } from './node-arrow-handles'
 import { SelectionManager } from './selection-manager'
 import { SiteEdgeLabels } from './site-edge-labels'
 import { SnapshotCaptureOverlay } from './snapshot-capture-overlay'
@@ -153,9 +152,6 @@ export interface EditorProps {
   settingsPanelProps?: SettingsPanelProps
   sitePanelProps?: SitePanelProps
   extraSidebarPanels?: ExtraPanel[]
-
-  // Presets storage backend (defaults to localStorage)
-  presetsAdapter?: PresetsAdapter
 
   // Command palette fallback when no commands match
   commandPaletteEmptyAction?: CommandPaletteEmptyAction
@@ -571,6 +567,14 @@ function PaintCursorBadge({
   )
 }
 
+// Subscribes to `gridSnapStep` so the visible grid cell size matches whatever
+// the wall draft tool snaps to — otherwise the cursor lands between visible
+// grid lines when the user picks a finer snap (0.25 / 0.1 / 0.05).
+function SnapAwareGrid() {
+  const gridSnapStep = useEditor((s) => s.gridSnapStep)
+  return <Grid cellColor="#aaa" cellSize={gridSnapStep} fadeDistance={500} sectionColor="#ccc" />
+}
+
 // ── Viewer scene content: memoized so <Viewer> doesn't re-render on mode/viewMode changes ──
 
 const ViewerSceneContent = memo(function ViewerSceneContent({
@@ -588,6 +592,7 @@ const ViewerSceneContent = memo(function ViewerSceneContent({
     <>
       {!isFirstPersonMode && <SelectionManager />}
       {!(isVersionPreviewMode || isFirstPersonMode) && <BoxSelectTool />}
+      {!(isVersionPreviewMode || isFirstPersonMode) && <NodeArrowHandles />}
       {!(isVersionPreviewMode || isFirstPersonMode) && <WallMoveSideHandles />}
       {!(isVersionPreviewMode || isFirstPersonMode) && <FloatingActionMenu />}
       {!(isVersionPreviewMode || isFirstPersonMode) && <FloatingBuildingActionMenu />}
@@ -598,14 +603,11 @@ const ViewerSceneContent = memo(function ViewerSceneContent({
       <CeilingSelectionAffordanceSystem />
       <RoofEditSystem />
       <StairEditSystem />
-      {!(isLoading || isFirstPersonMode) && (
-        <Grid cellColor="#aaa" fadeDistance={500} sectionColor="#ccc" />
-      )}
+      {!(isLoading || isFirstPersonMode) && <SnapAwareGrid />}
       {!(isLoading || isVersionPreviewMode || isFirstPersonMode) && <ToolManager />}
       {isFirstPersonMode && <FirstPersonControls />}
       <CustomCameraControls />
       <ThumbnailGenerator onThumbnailCapture={onThumbnailCapture} />
-      <PresetThumbnailGenerator />
       {!isFirstPersonMode && <SiteEdgeLabels />}
       <InteractiveSystem />
     </>
@@ -942,7 +944,6 @@ export default function Editor({
   settingsPanelProps,
   sitePanelProps,
   extraSidebarPanels,
-  presetsAdapter,
   commandPaletteEmptyAction,
 }: EditorProps) {
   const isFirstPersonMode = useEditor((s) => s.isFirstPersonMode)
@@ -1088,7 +1089,6 @@ export default function Editor({
       <StairEditSystem />
       <CustomCameraControls />
       <ThumbnailGenerator onThumbnailCapture={onThumbnailCapture} />
-      <PresetThumbnailGenerator />
       <InteractiveSystem />
     </Viewer>
   )
@@ -1132,7 +1132,7 @@ export default function Editor({
       })) ?? []
 
     return (
-      <PresetsProvider adapter={presetsAdapter}>
+      <>
         {showLoader && (
           <div className="fixed inset-0 z-60">
             <SceneLoader />
@@ -1186,7 +1186,7 @@ export default function Editor({
             <CommandPalette emptyAction={commandPaletteEmptyAction} />
           </>
         )}
-      </PresetsProvider>
+      </>
     )
   }
 
@@ -1197,54 +1197,52 @@ export default function Editor({
   const overlayLeft = LAYOUT_PADDING + (isSidebarCollapsed ? 8 : sidebarWidth) + LAYOUT_GAP
 
   return (
-    <PresetsProvider adapter={presetsAdapter}>
-      <div className="dark flex h-full w-full gap-3 bg-neutral-100 p-3 text-foreground">
-        {showLoader && (
-          <div className="fixed inset-0 z-60">
-            <SceneLoader />
-          </div>
-        )}
+    <div className="dark flex h-full w-full gap-3 bg-neutral-100 p-3 text-foreground">
+      {showLoader && (
+        <div className="fixed inset-0 z-60">
+          <SceneLoader />
+        </div>
+      )}
 
-        {!isLoading && isPreviewMode ? (
-          <>
-            <ViewerOverlay onBack={() => useEditor.getState().setPreviewMode(false)} />
-            <div className="h-full w-full">{previewViewerContent}</div>
-          </>
-        ) : (
-          <>
-            {/* Sidebar */}
-            <SidebarSlot>
-              <AppSidebar
-                appMenuButton={appMenuButton}
-                commandPaletteEmptyAction={commandPaletteEmptyAction}
-                extraPanels={extraSidebarPanels}
-                settingsPanelProps={settingsPanelProps}
-                sidebarTop={sidebarTop}
-                sitePanelProps={sitePanelProps}
-              />
-            </SidebarSlot>
+      {!isLoading && isPreviewMode ? (
+        <>
+          <ViewerOverlay onBack={() => useEditor.getState().setPreviewMode(false)} />
+          <div className="h-full w-full">{previewViewerContent}</div>
+        </>
+      ) : (
+        <>
+          {/* Sidebar */}
+          <SidebarSlot>
+            <AppSidebar
+              appMenuButton={appMenuButton}
+              commandPaletteEmptyAction={commandPaletteEmptyAction}
+              extraPanels={extraSidebarPanels}
+              settingsPanelProps={settingsPanelProps}
+              sidebarTop={sidebarTop}
+              sitePanelProps={sitePanelProps}
+            />
+          </SidebarSlot>
 
-            {/* Viewer area */}
-            <div className="relative flex-1 overflow-hidden rounded-xl">{viewerCanvas}</div>
+          {/* Viewer area */}
+          <div className="relative flex-1 overflow-hidden rounded-xl">{viewerCanvas}</div>
 
-            {/* Fixed UI overlays scoped to the viewer area */}
-            <ViewerOverlays left={overlayLeft}>
-              <div className="pointer-events-auto">
-                <ActionMenu />
-              </div>
-              <div className="pointer-events-auto">
-                <PanelManager />
-              </div>
-              <div className="pointer-events-auto">
-                <HelperManager />
-              </div>
-              {isFirstPersonMode && (
-                <FirstPersonOverlay onExit={() => useEditor.getState().setFirstPersonMode(false)} />
-              )}
-            </ViewerOverlays>
-          </>
-        )}
-      </div>
-    </PresetsProvider>
+          {/* Fixed UI overlays scoped to the viewer area */}
+          <ViewerOverlays left={overlayLeft}>
+            <div className="pointer-events-auto">
+              <ActionMenu />
+            </div>
+            <div className="pointer-events-auto">
+              <PanelManager />
+            </div>
+            <div className="pointer-events-auto">
+              <HelperManager />
+            </div>
+            {isFirstPersonMode && (
+              <FirstPersonOverlay onExit={() => useEditor.getState().setFirstPersonMode(false)} />
+            )}
+          </ViewerOverlays>
+        </>
+      )}
+    </div>
   )
 }

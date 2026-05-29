@@ -130,6 +130,13 @@ export interface ThumbnailGenerateEvent {
    * that should fire immediately from the current camera pose.
    */
   snapLevels?: boolean
+  /**
+   * When true, keep the rendered alpha channel — emits a transparent PNG
+   * without baking the scene background into the output. Used by the
+   * preset capture flow so saved preset thumbnails composite cleanly on
+   * any palette background.
+   */
+  transparent?: boolean
 }
 
 export interface CameraControlFitSceneEvent {
@@ -182,11 +189,6 @@ type WindowAnimationEvents = {
   }
 }
 
-type PresetEvents = {
-  'preset:generate-thumbnail': { presetId: string; nodeId: string }
-  'preset:thumbnail-updated': { presetId: string; thumbnailUrl: string }
-}
-
 type ThumbnailEvents = {
   'thumbnail:before-capture': undefined
   'thumbnail:after-capture': undefined
@@ -236,7 +238,6 @@ type EditorEvents = GridEvents &
   GuideEvents &
   DoorAnimationEvents &
   WindowAnimationEvents &
-  PresetEvents &
   ThumbnailEvents &
   SnapshotEvents &
   AIChatEvents

@@ -38,6 +38,7 @@ function makeNode(kind: string, idStr: string, extra: Partial<AnyNode> = {}): An
 function makeFakeScene(nodes: Record<string, AnyNode>): SceneApi {
   return {
     get: ((nid: AnyNodeId) => nodes[nid as string]) as SceneApi['get'],
+    nodes: () => nodes as Readonly<Record<AnyNodeId, AnyNode>>,
     update: () => {},
     upsert: () => id(''),
     delete: () => {},
@@ -46,6 +47,8 @@ function makeFakeScene(nodes: Record<string, AnyNode>): SceneApi {
     markDirty: () => {},
     pauseHistory: () => {},
     resumeHistory: () => {},
+    getSubtree: () => null,
+    cloneNodesInto: () => null,
   }
 }
 
