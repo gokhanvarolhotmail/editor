@@ -1,1 +1,0 @@
-E:/GitHub/claude-skills/hooks/auto_commit.py

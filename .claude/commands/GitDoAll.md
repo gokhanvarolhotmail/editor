@@ -1,1 +1,0 @@
-E:/GitHub/claude-skills/commands/GitDoAll.md

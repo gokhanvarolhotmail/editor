@@ -1,1 +1,0 @@
-E:/GitHub/claude-skills/hooks/queue_state_change.py

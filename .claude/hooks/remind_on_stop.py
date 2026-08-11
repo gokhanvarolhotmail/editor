@@ -1,1 +1,0 @@
-E:/GitHub/claude-skills/hooks/remind_on_stop.py
